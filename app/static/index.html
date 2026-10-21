@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DriveDiagnostics | Fleet Intelligence</title>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,sans-serif;color:#eaf0ff;background:#0b1020}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 80% 0%,#202e56 0%,transparent 40%),#0b1020}
+header{padding:23px 5%;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #293149}
+.logo{font-size:20px;font-weight:800;letter-spacing:-.8px}.logo b{color:#78a6ff}
+small, .muted{color:#98a4bf}.tag{border:1px solid #334a70;color:#bcd3ff;padding:8px 13px;border-radius:99px;font-size:12px}
+main{max-width:1450px;margin:auto;padding:35px 5%}h1{font-size:36px;letter-spacing:-1.5px;margin:0 0 8px}
+p{line-height:1.5}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:30px 0}
+.panel,.stat{background:#151d31;border:1px solid #2a3650;border-radius:17px;padding:22px;box-shadow:0 10px 40px #0001}
+.stat label{font-size:13px;color:#aebbd3}.stat strong{display:block;font-size:35px;margin-top:7px}
+.columns{display:grid;grid-template-columns:1fr 1.65fr;gap:18px}.stack{display:grid;gap:18px}
+h2{font-size:17px;margin:0 0 18px}.vehicle{display:flex;align-items:center;justify-content:space-between;padding:17px 12px;border:1px solid #313c52;border-radius:10px;margin:9px 0;cursor:pointer;background:#192237;text-align:left;width:100%;color:inherit}
+.vehicle:hover,.vehicle.active{border-color:#6698f8;background:#1d3050}.vehicle strong{display:block;font-size:14px}
+.pill{font-size:11px;border-radius:20px;padding:5px 10px;background:#1f604d;color:#9df0c3;text-transform:uppercase}
+.pill.critical{background:#662a36;color:#ffc4c4}.pill.warning{background:#625028;color:#f9da88}
+select,button{border:1px solid #39496c;border-radius:9px;background:#202d45;color:#f2f5ff;padding:11px;font:inherit}
+button.primary{background:#6698f8;color:#071329;font-weight:750;cursor:pointer;border:0}
+.controls{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin:15px 0}
+canvas{max-width:100%;height:280px;width:100%;background:#111a2c;border-radius:12px}
+.alert{padding:12px 14px;border:1px solid #37405a;border-radius:11px;display:flex;gap:8px;justify-content:space-between;margin:9px 0}
+.alert strong{display:block;font-size:13px}.alert small{display:block;padding-top:5px}.alert button{font-size:12px;padding:5px 10px}
+footer{margin-top:36px;color:#8a98b2;font-size:12px}#message{color:#91d4ff;min-height:20px}
+@media(max-width:900px){.columns{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:490px){.metrics{grid-template-columns:1fr 1fr}.stat{padding:14px}.stat strong{font-size:26px}h1{font-size:29px}}
+</style></head><body>
+<header><div class="logo">◈ Drive<b>Diagnostics</b></div><span class="tag">● SYNTHETIC TELEMETRY DEMO</span></header>
+<main>
+<small>FLEET OPERATIONS / INTELLIGENCE</small><h1>Vehicle health overview</h1>
+<p class="muted">Explore simulated sensor streams, detect abnormalities, and manage diagnostic incidents.</p>
+<div class="metrics"><div class="stat"><label>Active vehicles</label><strong id="total">—</strong></div><div class="stat"><label>Healthy vehicles</label><strong id="healthy">—</strong></div><div class="stat"><label>Vehicles needing attention</label><strong id="attention">—</strong></div><div class="stat"><label>Active incidents</label><strong id="incidents">—</strong></div></div>
+<div class="columns"><div class="stack">
+<section class="panel"><h2>Fleet monitor</h2><div id="fleet">Loading...</div></section>
+<section class="panel"><h2>Fault simulator</h2><p class="muted">Inject faults into synthetic sensor streams to see detection rules in action.</p><div class="controls"><select id="vehicle-select" aria-label="Vehicle"></select><select id="scenario" aria-label="Scenario"><option value="normal">Normal operation</option><option value="overheat">Engine overheating</option><option value="low_battery">Low battery</option><option value="oil_pressure">Oil pressure drop</option><option value="excess_vibration">Excessive vibration</option><option value="mixed">Multiple faults</option></select><button class="primary" id="run">Run simulation</button></div><div id="message" role="status"></div></section>
+</div><div class="stack">
+<section class="panel"><h2>Telemetry trends</h2><div class="controls"><span id="selected-vehicle">Select vehicle</span><select id="metric" aria-label="Metric"><option value="coolant_c">Coolant (°C)</option><option value="oil_pressure_psi">Oil pressure (psi)</option><option value="battery_v">Battery voltage (V)</option><option value="vibration_g">Vibration (g)</option><option value="rpm">Engine RPM</option><option value="speed_kmh">Speed (km/h)</option></select></div><canvas id="chart" width="850" height="280" aria-label="Sensor history line chart"></canvas></section>
+<section class="panel"><h2>Diagnostic incidents</h2><div class="controls"><select id="filter"><option value="">All statuses</option><option value="open">Open</option><option value="investigating">Investigating</option><option value="resolved">Resolved</option></select></div><div id="alerts">Loading...</div></section>
+</div></div>
+<footer>DriveDiagnostics · Portfolio application · All readings and limits are simulated. Not for real-world automotive diagnosis.</footer>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const api=async(path,options)=>{const r=await fetch(path,options);if(!r.ok)throw new Error('Request failed ('+r.status+')');return r.json()};
+let selected='DD-101', readings=[];
+async function refresh(){
+ const [s,f]=await Promise.all([api('/api/summary'),api('/api/vehicles')]);
+ $('total').textContent=s.total_vehicles;$('healthy').textContent=s.healthy_vehicles;
+ $('attention').textContent=s.attention_vehicles;$('incidents').textContent=s.open_incidents;
+ $('fleet').replaceChildren();$('vehicle-select').replaceChildren();
+ f.forEach(v=>{
+  const b=document.createElement('button');b.className='vehicle'+(v.id===selected?' active':'');
+  const name=document.createElement('span');const title=document.createElement('strong');title.textContent=v.model;
+  const label=document.createElement('small');label.textContent=v.id+' • '+v.trim;name.append(title,label);
+  const state=document.createElement('span');state.className='pill '+v.health;state.textContent=v.health;
+  b.append(name,state);b.onclick=()=>{selected=v.id;refresh()};$('fleet').append(b);
+  const opt=document.createElement('option');opt.value=v.id;opt.textContent=v.model+' ('+v.id+')';$('vehicle-select').append(opt);
+ });
+ $('vehicle-select').value=selected;
+ $('selected-vehicle').textContent=selected;
+ readings=await api('/api/vehicles/'+encodeURIComponent(selected)+'/telemetry?limit=90');
+ draw();await loadAlerts();
+}
+async function loadAlerts(){
+ const status=$('filter').value;
+ const items=await api('/api/incidents?limit=100'+(status?'&status='+status:''));
+ $('alerts').replaceChildren();
+ if(!items.length){$('alerts').textContent='No incidents for this filter.';return}
+ items.forEach(x=>{
+  const card=document.createElement('div');card.className='alert';
+  const left=document.createElement('div');const title=document.createElement('strong');
+  title.textContent=x.title+' · '+x.vehicle_id;
+  const caption=document.createElement('small');
+  caption.textContent=x.rule_code+' · '+x.observed_value+' '+x.unit+' · '+x.status;
+  left.append(title,caption);
+  const right=document.createElement('div');const pill=document.createElement('span');
+  pill.className='pill '+x.severity;pill.textContent=x.severity;right.append(pill);
+  if(x.status!=='resolved'){
+   const btn=document.createElement('button');btn.textContent=x.status==='open'?'Investigate':'Resolve';
+   btn.onclick=async()=>{btn.disabled=true;await api('/api/incidents/'+x.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:x.status==='open'?'investigating':'resolved'})});await refresh()};
+   right.append(document.createTextNode(' '),btn);
+  }card.append(left,right);$('alerts').append(card);
+ });
+}
+function draw(){
+ const c=$('chart'),ctx=c.getContext('2d'),W=c.width,H=c.height,m=42;
+ const values=readings.map(x=>Number(x[$('metric').value]));
+ ctx.clearRect(0,0,W,H);ctx.fillStyle='#111a2c';ctx.fillRect(0,0,W,H);
+ if(!values.length)return;
+ let min=Math.min(...values),max=Math.max(...values),pad=(max-min)*0.2||1;min-=pad;max+=pad;
+ ctx.strokeStyle='#2b3955';ctx.fillStyle='#aebbd3';ctx.font='12px sans-serif';
+ for(let i=0;i<5;i++){const y=m+(H-2*m)*i/4;ctx.beginPath();ctx.moveTo(m,y);ctx.lineTo(W-m,y);ctx.stroke();ctx.fillText((max-(max-min)*i/4).toFixed(1),4,y+4)}
+ ctx.beginPath();ctx.lineWidth=3;ctx.strokeStyle='#8faeff';
+ values.forEach((v,i)=>{const x=m+i*(W-2*m)/Math.max(values.length-1,1);const y=H-m-(v-min)/(max-min)*(H-2*m);i?ctx.lineTo(x,y):ctx.moveTo(x,y)});
+ ctx.stroke();
+}
+$('metric').onchange=draw;$('filter').onchange=loadAlerts;
+$('run').onclick=async()=>{
+ const btn=$('run');btn.disabled=true;$('message').textContent='Generating telemetry...';
+ try{const r=await api('/api/simulate',{method:'POST',headers:{'Content-Type':'application/json'},
+ body:JSON.stringify({vehicle_id:$('vehicle-select').value,scenario:$('scenario').value,samples:90})});
+ selected=r.vehicle_id;$('message').textContent='Added '+r.created_samples+' samples and '+r.created_incidents+' diagnostic alerts.';
+ await refresh()
+ }catch(e){$('message').textContent=e.message}finally{btn.disabled=false}
+};
+refresh().catch(e=>{$('fleet').textContent='Error: '+e.message});
+</script></body></html>
