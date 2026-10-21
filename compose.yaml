@@ -1,0 +1,11 @@
+services:
+  drive-diagnostics:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DRIVEDIAGNOSTICS_DB: /data/drivediagnostics.db
+    volumes:
+      - telemetry-data:/data
+volumes:
+  telemetry-data:
